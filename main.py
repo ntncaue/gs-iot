@@ -44,35 +44,39 @@ genai.configure(api_key=GEMINI_KEY)
 
 def extract_json(text):
     """
-    Extrator extremamente tolerante.
-    Remove markdown, caracteres invisíveis, e tenta validar TODOS os blocos JSON possíveis.
+    Extrator tolerante para JSON do Gemini:
+    - Remove blocos de markdown ```json ... ```
+    - Tenta encontrar qualquer bloco JSON ou array []
+    - Retorna o primeiro JSON válido encontrado
     """
 
     # Remove blocos ```json ... ```
+    text = re.sub(r"```json.*?```", "", text, flags=re.DOTALL | re.IGNORECASE)
     text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
 
     # Remove caracteres invisíveis
     text = text.replace("\ufeff", "").strip()
 
-    # PRIMEIRA TENTATIVA — procurar blocos entre { }
-    candidates = re.findall(r"\{(?:[^{}]|(?:\{[^{}]*\}))*\}", text, flags=re.DOTALL)
+    # Remove possíveis textos antes/depois de JSON
+    # Encontrar o primeiro bloco que começa com { e termina com }
+    json_pattern = r"\{(?:[^{}]|(?:\{[^{}]*\}))*\}"
+    candidates = re.findall(json_pattern, text, flags=re.DOTALL)
 
-    # Testa cada bloco encontrado
     for c in candidates:
         try:
             return json.loads(c)
         except:
             pass
 
-    # SEGUNDA TENTATIVA — procurar arrays []
-    candidates = re.findall(r"\[.*?\]", text, flags=re.DOTALL)
-    for c in candidates:
+    # Tentativa final: arrays []
+    array_candidates = re.findall(r"\[.*?\]", text, flags=re.DOTALL)
+    for c in array_candidates:
         try:
             return json.loads(c)
         except:
             pass
 
-    # ERRO FINAL — mostra o RAW inteiro
+    # Se nada funcionar, mostra o RAW
     raise ValueError("Nenhum JSON válido encontrado.\nRAW Recebido:\n" + text)
 
 
@@ -116,8 +120,12 @@ def analyze_cv(uploaded_file):
     st.subheader("RAW do Gemini:")
     st.code(raw)
 
-    json_data = extract_json(raw)
-    return json_data
+    try:
+        json_data = extract_json(raw)
+        return json_data
+    except ValueError as e:
+        st.error(f"Erro ao extrair JSON: {e}")
+        return None
 
 
 # -----------------------------------------------------------
@@ -228,39 +236,48 @@ uploaded = st.file_uploader("Envie seu currículo (PDF, PNG, JPG)", type=["pdf",
 if uploaded:
     if st.button("🔍 Analisar Currículo"):
         with st.spinner("IA analisando..."):
-
             result = analyze_cv(uploaded)
 
+        if result:
             st.success("JSON interpretado com sucesso!")
             st.json(result)
 
-            skills = result["skills"]
-            career = result["career"]
-            meta = result["career_meta"]
+            skills = result.get("skills", [])
+            career = result.get("career")
+            meta = result.get("career_meta")
 
-            # SKILLS
-            st.subheader("💾 Salvando skills")
-            skill_ids = []
-            for skill in skills:
-                sid = send_skill(skill)
-                if sid:
-                    skill_ids.append(sid)
+            if skills and career and meta:
+                # SKILLS
+                st.subheader("💾 Salvando skills")
+                skill_ids = []
+                for skill in skills:
+                    sid = send_skill(skill)
+                    if sid:
+                        skill_ids.append(sid)
 
-            st.success(f"{len(skill_ids)} skills salvas!")
+                st.success(f"{len(skill_ids)} skills salvas!")
 
-            for sid in skill_ids:
-                st.json(get_skill(sid))
+                if skill_ids:
+                    st.subheader("📌 Skills gravadas na API:")
+                    for sid in skill_ids:
+                        st.json(get_skill(sid))
 
-            # CAREER
-            st.subheader("💾 Salvando carreira recomendada")
-            career_id = send_career(career, meta)
-            st.success(f"Carreira salva ID={career_id}")
-            st.json(get_career(career_id))
+                # CAREER
+                st.subheader("💾 Salvando carreira recomendada")
+                career_id = send_career(career, meta)
+                if career_id:
+                    st.success(f"Carreira salva ID={career_id}")
+                    st.subheader("📌 Carreira cadastrada:")
+                    st.json(get_career(career_id))
 
-            # PREDICTION
-            st.subheader("📊 Gerando previsão ML.NET")
-            prediction_id = create_prediction(user_id, career_id)
-            st.success(f"Previsão gerada ID={prediction_id}")
-            st.json(get_prediction(prediction_id))
+                    # PREDICTION
+                    st.subheader("📊 Gerando previsão ML.NET")
+                    prediction_id = create_prediction(user_id, career_id)
+                    if prediction_id:
+                        st.success(f"Previsão gerada ID={prediction_id}")
+                        st.subheader("📌 Previsão ML.NET:")
+                        st.json(get_prediction(prediction_id))
 
-        st.success("🎉 Processo FINALIZADO!")
+            st.success("🎉 Processo FINALIZADO!")
+        else:
+            st.error("Não foi possível analisar o currículo. Verifique o RAW do Gemini acima para mais detalhes.")
