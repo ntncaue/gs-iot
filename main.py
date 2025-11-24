@@ -45,7 +45,6 @@ DOTNET_API = detect_dotnet_api()
 client = genai.Client(api_key=GEMINI_KEY)
 
 
-
 # -----------------------------------------------------------
 # FUNÇÕES AUXILIARES
 # -----------------------------------------------------------
@@ -53,7 +52,6 @@ client = genai.Client(api_key=GEMINI_KEY)
 def file_to_base64(file):
     return base64.b64encode(file.read()).decode()
 
-<<<<<<< HEAD
 def extract_json(raw):
     raw = raw.replace("\ufeff", "").strip()
     match = re.search(r"{[\s\S]*}", raw)
@@ -64,51 +62,6 @@ def extract_json(raw):
         except json.JSONDecodeError as e:
             raise ValueError(f"Erro ao decodificar JSON: {e}\nConteúdo: {json_str}")
     raise ValueError("Nenhum JSON válido foi encontrado na resposta da IA.\nRAW Recebido:\n" + raw)
-=======
-
-
-# -----------------------------------------------------------
-# EXTRATOR BRUTAL™ — Recupera QUALQUER JSON do texto
-# -----------------------------------------------------------
-
-def extract_json(text):
-    """
-    Extrator tolerante para JSON do Gemini:
-    - Remove blocos de markdown ```json ... ```
-    - Tenta encontrar qualquer bloco JSON ou array []
-    - Retorna o primeiro JSON válido encontrado
-    """
-
-    # Remove blocos ```json ... ```
-    text = re.sub(r"```json.*?```", "", text, flags=re.DOTALL | re.IGNORECASE)
-    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
-
-    # Remove caracteres invisíveis
-    text = text.replace("\ufeff", "").strip()
-
-    # Remove possíveis textos antes/depois de JSON
-    # Encontrar o primeiro bloco que começa com { e termina com }
-    json_pattern = r"\{(?:[^{}]|(?:\{[^{}]*\}))*\}"
-    candidates = re.findall(json_pattern, text, flags=re.DOTALL)
-
-    for c in candidates:
-        try:
-            return json.loads(c)
-        except:
-            pass
-
-    # Tentativa final: arrays []
-    array_candidates = re.findall(r"\[.*?\]", text, flags=re.DOTALL)
-    for c in array_candidates:
-        try:
-            return json.loads(c)
-        except:
-            pass
-
-    # Se nada funcionar, mostra o RAW
-    raise ValueError("Nenhum JSON válido encontrado.\nRAW Recebido:\n" + text)
-
->>>>>>> c077bb08d5f2b32b1b761bb5c2c559cb1be75613
 
 # -----------------------------------------------------------
 # Gemini — Análise do CV
@@ -152,18 +105,8 @@ def analyze_cv(base64_file, mime_type):
     raw = response.text.strip()
     st.subheader("RAW do Gemini:")
     st.code(raw)
-<<<<<<< HEAD
     json_data = extract_json(raw)
     return json_data
-=======
-
-    try:
-        json_data = extract_json(raw)
-        return json_data
-    except ValueError as e:
-        st.error(f"Erro ao extrair JSON: {e}")
-        return None
->>>>>>> c077bb08d5f2b32b1b761bb5c2c559cb1be75613
 
 # -----------------------------------------------------------
 # .NET API — SKILLS
@@ -340,20 +283,13 @@ if uploaded:
 
     if st.button("🔍 Analisar Currículo"):
         with st.spinner("IA analisando..."):
-<<<<<<< HEAD
 
             # ---------- ANALISAR CV ----------
             result = analyze_cv(base64_file, mime_type)
-=======
-            result = analyze_cv(uploaded)
-
-        if result:
->>>>>>> c077bb08d5f2b32b1b761bb5c2c559cb1be75613
             st.success("JSON interpretado com sucesso!")
             st.json(result)
 
             skills = result.get("skills", [])
-<<<<<<< HEAD
             career = result.get("career", "")
             meta = result.get("career_meta", {})
 
@@ -399,43 +335,5 @@ if uploaded:
                     st.warning("Previsão não foi gerada.")
             else:
                 st.warning("Previsão não pode ser gerada sem carreira.")
-=======
-            career = result.get("career")
-            meta = result.get("career_meta")
 
-            if skills and career and meta:
-                # SKILLS
-                st.subheader("💾 Salvando skills")
-                skill_ids = []
-                for skill in skills:
-                    sid = send_skill(skill)
-                    if sid:
-                        skill_ids.append(sid)
-
-                st.success(f"{len(skill_ids)} skills salvas!")
-
-                if skill_ids:
-                    st.subheader("📌 Skills gravadas na API:")
-                    for sid in skill_ids:
-                        st.json(get_skill(sid))
-
-                # CAREER
-                st.subheader("💾 Salvando carreira recomendada")
-                career_id = send_career(career, meta)
-                if career_id:
-                    st.success(f"Carreira salva ID={career_id}")
-                    st.subheader("📌 Carreira cadastrada:")
-                    st.json(get_career(career_id))
-
-                    # PREDICTION
-                    st.subheader("📊 Gerando previsão ML.NET")
-                    prediction_id = create_prediction(user_id, career_id)
-                    if prediction_id:
-                        st.success(f"Previsão gerada ID={prediction_id}")
-                        st.subheader("📌 Previsão ML.NET:")
-                        st.json(get_prediction(prediction_id))
->>>>>>> c077bb08d5f2b32b1b761bb5c2c559cb1be75613
-
-            st.success("🎉 Processo FINALIZADO!")
-        else:
-            st.error("Não foi possível analisar o currículo. Verifique o RAW do Gemini acima para mais detalhes.")
+        st.success("🎉 Processo FINALIZADO!")
